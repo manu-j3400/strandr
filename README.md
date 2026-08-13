@@ -7,7 +7,7 @@ the memory is full, but because it's in the wrong shape. strandr does the
 autopsy: it finds the wasted memory, counts the holes, and names the exact
 allocation that stranded each one.
 
-## The parking lot dillema
+## The parking lot dilemma
 
 A GPU has a chunk of memory. A model grabs space when it needs it and hands it
 back when it's done. Do that over and over in different sizes and the free space
