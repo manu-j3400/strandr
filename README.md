@@ -1,4 +1,5 @@
 # strandr
+![strandr report](report/strandr_report.png)
 
 **Find out which line of code stranded your GPU memory.**
 
