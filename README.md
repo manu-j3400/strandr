@@ -1,6 +1,6 @@
 # strandr
 
-**Find out which line of code stranded your GPU memory.**
+**The tool you need to find which line of code stranded your GPU memory.**
 
 Your GPU can crash with "out of memory" while gigabytes sit free. Not because
 the memory is full, but because it's in the wrong shape. strandr does the
@@ -42,17 +42,29 @@ Requires PyTorch with CUDA and `nvidia-ml-py`.
 
 ## Usage
 
+The safe one-liner. Wrap your code and the autopsy prints automatically:
+
 ```python
 import strandr
 
+with strandr.watch():
+    model = load_your_model().cuda()
+    run_your_inference()
+# strandr report prints here
+```
+
+`watch()` handles recording and reporting in the right order, so attribution
+never comes back blank. If you need manual control:
+
+```python
 strandr.start_recording()          # BEFORE loading your model
 model = load_your_model().cuda()
 run_your_inference()
 strandr.report()                   # autopsy the current GPU memory
 ```
 
-`start_recording()` must be called before any GPU memory is allocated, so every
-block carries the stack that created it.
+Recording must start before any GPU memory is allocated, so every block carries
+the stack that created it. `watch()` and `start_recording()` both enforce this.
 
 ## Example output
 

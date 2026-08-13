@@ -14,6 +14,8 @@ Usage:
     strandr.report()                   # autopsy the current GPU memory
 """
 
+import contextlib
+
 import torch
 from collections import defaultdict
 
@@ -47,9 +49,16 @@ def _best_frame(frames):
 def start_recording(max_entries=200000):
     """Turn on allocation stack recording.
 
-    Must be called BEFORE any GPU memory is allocated (before loading the
-    model), so every block carries the stack that created it.
+    Call BEFORE any GPU memory is allocated (before loading the model), so
+    every block carries the stack that created it. Safe to call as the very
+    first CUDA operation — it initializes CUDA first.
     """
+    if not torch.cuda.is_available():
+        raise RuntimeError(
+            "strandr needs a CUDA GPU, but none is available. "
+            "On Colab: Runtime > Change runtime type > T4 GPU."
+        )
+    torch.cuda.init()  # ensure CUDA is up before touching the recording API
     torch.cuda.memory._record_memory_history(
         enabled="all",
         context="all",
@@ -57,6 +66,26 @@ def start_recording(max_entries=200000):
         max_entries=max_entries,
     )
     print("strandr: recording on — load your model and run inference, then call report()")
+
+
+@contextlib.contextmanager
+def watch(top=6):
+    """Record, run your code, and auto-print the autopsy. The safe one-liner.
+
+        import strandr
+        with strandr.watch():
+            model = load_your_model().cuda()
+            run_your_inference()
+        # report prints automatically on exit
+
+    This wraps start_recording() and report() so they can't be called in the
+    wrong order — the #1 cause of blank ("no-stack") attribution.
+    """
+    start_recording()
+    try:
+        yield
+    finally:
+        report(top=top)
 
 
 def collect():
