@@ -1,7 +1,5 @@
 # strandr
 
-**The tool you need to find which line of code stranded your GPU memory.**
-
 Your GPU can crash with "out of memory" while gigabytes sit free. Not because
 the memory is full, but because it's in the wrong shape. strandr does the
 autopsy: it finds the wasted memory, counts the holes, and names the exact
