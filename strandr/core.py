@@ -129,7 +129,100 @@ def collect():
     }
 
 
-def report(top=6):
+def advise():
+    """Read the current fragmentation shape and prescribe the allocator fix.
+
+    Returns the recommended PYTORCH_CUDA_ALLOC_CONF value and prints the
+    reasoning. The setting must be applied in a FRESH process (before CUDA
+    initializes), so this advises — see prove_snippet() for a before/after
+    harness you can run.
+    """
+    data = collect()
+    reserved = data["reserved"]
+    allocated = data["allocated"]
+    trapped = data["trapped"]
+    holes = data["holes"]
+
+    print("=" * 64)
+    print("  strandr advice")
+    print("=" * 64)
+
+    if not holes or trapped < 50 * MB:
+        print("  fragmentation is minimal — no allocator change needed.")
+        print("=" * 64)
+        return None
+
+    frac = trapped / reserved if reserved else 0
+    big_holes = [h for h in holes if h > 50 * MB]
+    tiny_holes = [h for h in holes if h < 2 * MB]
+
+    print(f"  trapped: {trapped/GB:.2f} GB ({100*frac:.0f}% of held)"
+          f" across {len(holes)} holes")
+
+    recommendation = None
+    reason = None
+
+    if frac > 0.20:
+        # a lot of memory is stranded relative to what's held — segments aren't
+        # being reused. expandable_segments lets the allocator grow/reclaim.
+        recommendation = "expandable_segments:True"
+        reason = ("a large share of held memory is trapped, which means whole "
+                  "segments aren't being reused. expandable_segments lets the "
+                  "allocator reclaim them.")
+    elif big_holes:
+        # large uniform holes -> cap the split size near the hole size so the
+        # allocator stops leaving big unusable remainders.
+        import statistics
+        target = int(statistics.median(big_holes) / MB)
+        # round to a sensible boundary
+        target = max(128, (target // 128) * 128)
+        recommendation = f"max_split_size_mb:{target}"
+        reason = (f"you have {len(big_holes)} large holes (median "
+                  f"{statistics.median(big_holes)/MB:.0f} MB). capping the split "
+                  f"size stops the allocator from leaving big unusable remainders.")
+    elif len(tiny_holes) > 20:
+        recommendation = "roundup_power2_divisions:8"
+        reason = (f"you have {len(tiny_holes)} tiny holes — rounding allocation "
+                  "sizes to power-of-two divisions reduces small-block churn.")
+    else:
+        recommendation = "expandable_segments:True"
+        reason = "expandable_segments is the safest general fragmentation fix."
+
+    print("-" * 64)
+    print(f"  recommended:  PYTORCH_CUDA_ALLOC_CONF={recommendation}")
+    print(f"  why: {reason}")
+    print("-" * 64)
+    print("  apply it BEFORE importing torch / touching CUDA:")
+    print(f"      import os")
+    print(f'      os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "{recommendation}"')
+    print("  (must be a fresh process — the setting is read at CUDA init)")
+    print("=" * 64)
+    return recommendation
+
+
+def prove_snippet(recommendation=None):
+    """Print a copy-paste harness that runs a workload twice — once baseline,
+    once with the recommended fix — and reports the recovered memory.
+
+    Because the allocator setting is read at CUDA init, proving it requires
+    two fresh processes. This prints a script you run once with, once without.
+    """
+    rec = recommendation or "expandable_segments:True"
+    print("# Save as prove.py and run twice:")
+    print("#   python prove.py            # baseline")
+    print(f'#   FIX=1 python prove.py      # with {rec}')
+    print("import os, sys")
+    print('if os.environ.get("FIX"):')
+    print(f'    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "{rec}"')
+    print("import torch, strandr")
+    print("strandr.start_recording()")
+    print("# --- your workload here ---")
+    print("# model = load_your_model().cuda(); run_your_inference()")
+    print("# --------------------------")
+    print("strandr.report()")
+
+
+
     """Print a human-readable fragmentation autopsy of the current GPU memory."""
     data = collect()
     reserved = data["reserved"]
