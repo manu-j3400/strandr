@@ -222,6 +222,7 @@ def prove_snippet(recommendation=None):
     print("strandr.report()")
 
 
+def report(top=6):
 
     """Print a human-readable fragmentation autopsy of the current GPU memory."""
     data = collect()
