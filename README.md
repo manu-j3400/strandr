@@ -82,6 +82,25 @@ the stack that created it. `watch()` and `start_recording()` both enforce this.
 ================================================================
 ```
 
+### Version 3 Strandr: It doesn't just find the problem — it prescribes the fix
+
+``` 
+================================================================
+  strandr advice
+================================================================
+  trapped: 0.23 GB (33% of held) across 49 holes
+----------------------------------------------------------------
+  recommended:  PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+  why: a large share of held memory is trapped, which means whole segments aren't being reused. expandable_segments lets the allocator reclaim them.
+----------------------------------------------------------------
+  apply it BEFORE importing torch / touching CUDA:
+      import os
+      os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+  (must be a fresh process — the setting is read at CUDA init)
+================================================================
+expandable_segments:True
+```
+
 ## Try the demo
 
 ```bash
